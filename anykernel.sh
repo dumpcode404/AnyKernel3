@@ -77,6 +77,10 @@ configure_manual() {
       ;;
   esac
 
+  # OPLUS Port ROM: the ROM type is always rom_port, the choice above only selects the DTBO.
+  # (Without this, "rom" stayed empty in manual mode and e404_args started with a bare comma.)
+  [ "$oplus" = "1" ] && rom="rom_port"
+
   # DTB selection
   select_option "DTB CPU Frequency" "EFFCPU" "Default"
   dtb_sel="$SELECT_RESULT"
@@ -231,15 +235,39 @@ patch_vbmeta_flag=auto
 
 . tools/ak3-core.sh
 
+# OPLUS_BUILD marker: this zip carries a kernel built with CONFIG_OPLUS_PORT=y
+# (spoofed SELinux status, OPLUS hooks). Only the OPLUS build may be flashed on an OPLUS Port ROM,
+# and the OPLUS build must not be flashed on any other ROM.
+oplus_build=0
+if [ -f OPLUS_BUILD ] || [ -f "$home/OPLUS_BUILD" ]; then
+  oplus_build=1
+fi
+
 if [[ -f /vendor/OemPorts10T.prop ]] ||
   [[ -f /vendor/etc/init/OemPorts10T.rc ]]; then
-  ui_print " ! Detected OPLUS Port ROM by Dandaa !"
-  ui_print " ! Manual Configuration is Recommended !"
-  ui_print " Note : Port ROM Usually Need KernelSU Root !"
   oplus=1
 else
   oplus=0
   # devicecheck (problematc)
+fi
+
+if [[ "$oplus_build" == "1" ]]; then
+  if [[ "$oplus" == "1" ]]; then
+    ui_print " ! Detected OPLUS Port ROM by Dandaa !"
+    ui_print " ! Manual Configuration is Recommended !"
+    ui_print " Note : Port ROM Usually Need KernelSU Root !"
+  elif [ -f /data/local/tmp/e404_force_oplus ]; then
+    ui_print " ! OPLUS Port ROM not detected, FORCED by /data/local/tmp/e404_force_oplus !"
+    oplus=1
+  else
+    abort " ! This is the OPLUS Port build of E404R !" \
+      " ! No OPLUS Port ROM was detected (/vendor/OemPorts10T.*) !" \
+      " Flash the standard E404R zip instead." \
+      " Other OPLUS port projects: touch /data/local/tmp/e404_force_oplus and flash again."
+  fi
+elif [[ "$oplus" == "1" ]]; then
+  abort " ! OPLUS Port ROM detected, but this is the standard E404R build !" \
+    " Flash the OPLUS Port build of E404R instead."
 fi
 
 sleep 0.5
